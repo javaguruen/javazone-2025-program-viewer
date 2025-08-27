@@ -434,60 +434,66 @@ onMounted(async () => {
         
         <!-- Mobile Card View -->
         <div class="mobile-view">
-          <div v-for="timeSlot in dayData.timeSlots" :key="timeSlot" class="time-slot-mobile">
-            <div :class="['time-header-mobile', { 'current-time': isCurrentTimeSlot(timeSlot) }]" :data-time-slot="timeSlot">
-              <div class="time-display-mobile">
-                {{ formatTime(timeSlot) }}
-                <span v-if="isCurrentTimeSlot(timeSlot)" class="current-indicator-mobile">LIVE</span>
-              </div>
-            </div>
-            
-            <div class="sessions-grid-mobile">
-              <div 
-                v-for="room in dayData.rooms" 
-                :key="room"
-                class="session-card-mobile"
-                v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
-              >
-                <div 
-                  :class="['session-content-mobile', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
-                >
-                  <div class="session-room-mobile">
-                    {{ room }}
-                  </div>
-                  
-                  <div class="session-header-mobile">
-                    <a 
-                      href="#"
-                      class="session-title-link-mobile"
-                      @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
-                      :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
-                    >
-                      <div class="session-title-mobile">
-                        {{ dayData.sessionMap.get(timeSlot).get(room).title }}
-                      </div>
-                    </a>
-                    <button 
-                      :class="['favorite-btn-mobile', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
-                      @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
-                      :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
-                    >
-                      {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
-                    </button>
-                  </div>
-                  
-                  <div class="session-info-mobile">
-                    <div class="session-duration-mobile">
-                      {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
-                    </div>
-                    <div class="session-speakers-mobile">
-                      {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
-                    </div>
-                  </div>
+          <template v-for="timeSlot in dayData.timeSlots" :key="timeSlot">
+            <!-- Only show time slot header if there are sessions for this time slot -->
+            <div 
+              v-if="dayData.rooms.some(room => dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)))"
+              class="time-slot-mobile"
+            >
+              <div :class="['time-header-mobile', { 'current-time': isCurrentTimeSlot(timeSlot) }]" :data-time-slot="timeSlot">
+                <div class="time-display-mobile">
+                  {{ formatTime(timeSlot) }}
+                  <span v-if="isCurrentTimeSlot(timeSlot)" class="current-indicator-mobile">LIVE</span>
                 </div>
               </div>
+              
+              <div class="sessions-grid-mobile">
+                <template v-for="room in dayData.rooms" :key="room">
+                  <div 
+                    v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
+                    class="session-card-mobile"
+                  >
+                    <div 
+                      :class="['session-content-mobile', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                    >
+                      <div class="session-room-mobile">
+                        {{ room }}
+                      </div>
+                      
+                      <div class="session-header-mobile">
+                        <a 
+                          href="#"
+                          class="session-title-link-mobile"
+                          @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
+                          :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
+                        >
+                          <div class="session-title-mobile">
+                            {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                          </div>
+                        </a>
+                        <button 
+                          :class="['favorite-btn-mobile', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                          @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
+                          :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
+                        >
+                          {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
+                        </button>
+                      </div>
+                      
+                      <div class="session-info-mobile">
+                        <div class="session-duration-mobile">
+                          {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
+                        </div>
+                        <div class="session-speakers-mobile">
+                          {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
-          </div>
+          </template>
         </div>
         
         <div class="stats">
@@ -830,7 +836,7 @@ h2 {
 }
 
 .room-label {
-  background-color: #34495e;
+  background-color: #6c757d;
   color: white;
   padding: 8px 6px;
   text-align: center;
@@ -1640,26 +1646,28 @@ h2 {
 }
 
 /* Switch to mobile card view on smaller screens */
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .desktop-view {
-    display: none;
+    display: none !important;
   }
   
   .mobile-view {
-    display: block;
+    display: block !important;
   }
 }
 
 /* Mobile Time Slot Styles */
 .time-slot-mobile {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .time-header-mobile {
   background-color: #2c3e50;
   color: white;
-  padding: 12px 16px;
-  border-radius: 8px 8px 0 0;
+  padding: 14px 16px;
   font-weight: bold;
   text-align: center;
   position: sticky;
@@ -1748,7 +1756,7 @@ h2 {
 
 /* Room Label Mobile */
 .session-room-mobile {
-  background-color: #34495e;
+  background-color: #6c757d;
   color: white;
   padding: 6px 12px;
   border-radius: 16px;
