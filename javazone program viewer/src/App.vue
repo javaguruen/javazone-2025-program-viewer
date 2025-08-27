@@ -14,6 +14,7 @@ interface Session {
   startTimeZulu: string
   endTimeZulu: string
   speakers: Speaker[]
+  abstract?: string
 }
 
 interface DayData {
@@ -30,6 +31,8 @@ const error = ref<string | null>(null)
 const activeTab = ref<string>('')
 const favorites = ref<Set<string>>(new Set())
 const showFavoritesOnly = ref(false)
+const selectedSession = ref<Session | null>(null)
+const showModal = ref(false)
 
 const fetchSessions = async () => {
   try {
@@ -269,10 +272,35 @@ const isCurrentTimeSlot = (timeSlot: string) => {
   return now >= sessionStart && now <= sessionEnd
 }
 
+// Modal functions
+const openSessionModal = (session: Session) => {
+  selectedSession.value = session
+  showModal.value = true
+  // Prevent body scroll when modal is open
+  document.body.style.overflow = 'hidden'
+}
+
+const closeSessionModal = () => {
+  selectedSession.value = null
+  showModal.value = false
+  // Restore body scroll
+  document.body.style.overflow = 'auto'
+}
+
+// Close modal on escape key
+const handleKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && showModal.value) {
+    closeSessionModal()
+  }
+}
+
 onMounted(async () => {
   loadFavoritesFromStorage()
   await fetchSessions()
   await initializeView()
+  
+  // Add escape key listener
+  window.addEventListener('keydown', handleKeyDown)
 })
 </script>
 
@@ -361,9 +389,16 @@ onMounted(async () => {
                     :class="['session-content', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
                   >
                     <div class="session-header">
-                      <div class="session-title">
-                        {{ dayData.sessionMap.get(timeSlot).get(room).title }}
-                      </div>
+                      <a 
+                        href="#"
+                        class="session-title-link"
+                        @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
+                        :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
+                      >
+                        <div class="session-title">
+                          {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                        </div>
+                      </a>
                       <button 
                         :class="['favorite-btn', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
                         @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
@@ -389,6 +424,54 @@ onMounted(async () => {
         
         <div class="stats">
           <p>{{ dayData.displayDate }} - Sessions: {{ dayData.timeSlots.length }}, Rooms: {{ dayData.rooms.length }}</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Session Modal -->
+    <div v-if="showModal && selectedSession" class="modal-overlay" @click="closeSessionModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">{{ selectedSession.title }}</h2>
+          <button class="modal-close" @click="closeSessionModal" title="Close modal (ESC)">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="session-meta">
+            <div class="meta-item">
+              <strong>Room:</strong> {{ selectedSession.room }}
+            </div>
+            <div class="meta-item">
+              <strong>Duration:</strong> {{ selectedSession.length }} minutes
+            </div>
+            <div class="meta-item">
+              <strong>Time:</strong> {{ formatTime(selectedSession.startTimeZulu) }}
+            </div>
+            <div class="meta-item">
+              <strong>Format:</strong> {{ selectedSession.format }}
+            </div>
+            <div v-if="selectedSession.speakers && selectedSession.speakers.length > 0" class="meta-item">
+              <strong>Speaker(s):</strong> {{ getSpeakerNames(selectedSession.speakers) }}
+            </div>
+          </div>
+          
+          <div class="session-abstract">
+            <h3>Abstract</h3>
+            <div v-if="selectedSession.abstract" class="abstract-content">
+              {{ selectedSession.abstract }}
+            </div>
+            <div v-else class="no-abstract">
+              <em>No abstract available for this session.</em>
+            </div>
+          </div>
+          
+          <div class="modal-actions">
+            <button 
+              :class="['modal-favorite-btn', { 'favorited': isFavorite(selectedSession.sessionId) }]"
+              @click="toggleFavorite(selectedSession.sessionId)"
+            >
+              {{ isFavorite(selectedSession.sessionId) ? '❤️ Remove from favorites' : '🤍 Add to favorites' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -646,6 +729,21 @@ h2 {
   margin-bottom: 8px;
 }
 
+.session-title-link {
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: block;
+}
+
+.session-title-link:hover {
+  background-color: rgba(52, 152, 219, 0.1);
+  transform: translateY(-1px);
+}
+
 .session-title {
   font-weight: bold;
   line-height: 1.3;
@@ -655,7 +753,12 @@ h2 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-  flex: 1;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.session-title-link:hover .session-title {
+  color: #3498db;
 }
 
 .favorite-btn {
@@ -784,6 +887,189 @@ h2 {
   text-align: center;
   color: #2c3e50;
   font-weight: bold;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-width: 700px;
+  max-height: 80vh;
+  width: 90vw;
+  overflow-y: auto;
+  animation: slideIn 0.3s ease-out;
+  position: relative;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 24px 16px 24px;
+  border-bottom: 2px solid #ecf0f1;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.modal-title {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  flex: 1;
+  padding-right: 16px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  font-weight: bold;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  line-height: 1;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  background-color: #e74c3c;
+  color: white;
+  transform: scale(1.1);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.session-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #3498db;
+}
+
+.meta-item {
+  font-size: 14px;
+  color: #495057;
+  line-height: 1.4;
+}
+
+.meta-item strong {
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.session-abstract {
+  margin-bottom: 24px;
+}
+
+.session-abstract h3 {
+  color: #2c3e50;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 8px;
+}
+
+.abstract-content {
+  color: #495057;
+  font-size: 15px;
+  line-height: 1.6;
+  text-align: justify;
+  padding: 16px;
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.no-abstract {
+  color: #6c757d;
+  font-style: italic;
+  text-align: center;
+  padding: 32px 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+  border-top: 1px solid #dee2e6;
+}
+
+.modal-favorite-btn {
+  padding: 12px 24px;
+  border: 2px solid #e74c3c;
+  background-color: white;
+  color: #e74c3c;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-favorite-btn:hover {
+  background-color: #e74c3c;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+.modal-favorite-btn.favorited {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.modal-favorite-btn.favorited:hover {
+  background-color: #c0392b;
+  border-color: #c0392b;
 }
 
 @media (max-width: 768px) {
