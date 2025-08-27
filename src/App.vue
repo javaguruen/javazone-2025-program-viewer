@@ -263,6 +263,17 @@ const getSpeakerNames = (speakers: Speaker[]) => {
   return speakers.map(speaker => speaker.name).join(', ')
 }
 
+// Helper function to safely get a session from the session map
+const getSession = (dayData: DayData, timeSlot: string, room: string): Session | undefined => {
+  return dayData.sessionMap.get(timeSlot)?.get(room)
+}
+
+// Helper function to check if a session exists and should be shown
+const shouldShowSession = (dayData: DayData, timeSlot: string, room: string): boolean => {
+  const session = getSession(dayData, timeSlot, room)
+  return session !== undefined && (!showFavoritesOnly.value || isFavorite(session.sessionId))
+}
+
 // Check if a time slot is currently active
 const isCurrentTimeSlot = (timeSlot: string) => {
   const now = new Date()
@@ -383,7 +394,7 @@ onMounted(async () => {
                     v-for="room in dayData.rooms" 
                     :key="room"
                     class="session-column"
-                    :class="{ 'has-session': dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)) }"
+                    :class="{ 'has-session': shouldShowSession(dayData, timeSlot, room) }"
                   >
                     <!-- Room Header -->
                     <div class="room-label">
@@ -393,34 +404,34 @@ onMounted(async () => {
                     <!-- Session Content -->
                     <div class="session-wrapper">
                       <div 
-                        v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
-                        :class="['session-content', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                        v-if="shouldShowSession(dayData, timeSlot, room)"
+                        :class="['session-content', { 'favorite': getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) }]"
                       >
                         <div class="session-header">
                           <a 
                             href="#"
                             class="session-title-link"
-                            @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
-                            :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
+                            @click.prevent="getSession(dayData, timeSlot, room) && openSessionModal(getSession(dayData, timeSlot, room)!)"
+                            :title="getSession(dayData, timeSlot, room) ? 'Click to view details for: ' + getSession(dayData, timeSlot, room)!.title : ''"
                           >
                             <div class="session-title">
-                              {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                              {{ getSession(dayData, timeSlot, room)?.title }}
                             </div>
                           </a>
                           <button 
-                            :class="['favorite-btn', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
-                            @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
-                            :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
+                            :class="['favorite-btn', { 'favorited': getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) }]"
+                            @click="getSession(dayData, timeSlot, room) && toggleFavorite(getSession(dayData, timeSlot, room)!.sessionId)"
+                            :title="getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) ? 'Remove from favorites' : 'Add to favorites'"
                           >
-                            {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
+                            {{ getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) ? '❤️' : '🤍' }}
                           </button>
                         </div>
                         <div class="session-info">
                           <div class="session-duration">
-                            {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
+                            {{ getSession(dayData, timeSlot, room)?.length }} min
                           </div>
                           <div class="session-speakers">
-                            {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                            {{ getSession(dayData, timeSlot, room) ? getSpeakerNames(getSession(dayData, timeSlot, room)!.speakers) : '' }}
                           </div>
                         </div>
                       </div>
@@ -437,7 +448,7 @@ onMounted(async () => {
           <template v-for="timeSlot in dayData.timeSlots" :key="timeSlot">
             <!-- Only show time slot header if there are sessions for this time slot -->
             <div 
-              v-if="dayData.rooms.some(room => dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)))"
+              v-if="dayData.rooms.some(room => shouldShowSession(dayData, timeSlot, room))"
               class="time-slot-mobile"
             >
               <div :class="['time-header-mobile', { 'current-time': isCurrentTimeSlot(timeSlot) }]" :data-time-slot="timeSlot">
@@ -450,11 +461,11 @@ onMounted(async () => {
               <div class="sessions-grid-mobile">
                 <template v-for="room in dayData.rooms" :key="room">
                   <div 
-                    v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
+                    v-if="shouldShowSession(dayData, timeSlot, room)"
                     class="session-card-mobile"
                   >
                     <div 
-                      :class="['session-content-mobile', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                      :class="['session-content-mobile', { 'favorite': getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) }]"
                     >
                       <div class="session-room-mobile">
                         {{ room }}
@@ -464,28 +475,28 @@ onMounted(async () => {
                         <a 
                           href="#"
                           class="session-title-link-mobile"
-                          @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
-                          :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
+                          @click.prevent="getSession(dayData, timeSlot, room) && openSessionModal(getSession(dayData, timeSlot, room)!)"
+                          :title="getSession(dayData, timeSlot, room) ? 'Click to view details for: ' + getSession(dayData, timeSlot, room)!.title : ''"
                         >
                           <div class="session-title-mobile">
-                            {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                            {{ getSession(dayData, timeSlot, room)?.title }}
                           </div>
                         </a>
                         <button 
-                          :class="['favorite-btn-mobile', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
-                          @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
-                          :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
+                          :class="['favorite-btn-mobile', { 'favorited': getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) }]"
+                          @click="getSession(dayData, timeSlot, room) && toggleFavorite(getSession(dayData, timeSlot, room)!.sessionId)"
+                          :title="getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) ? 'Remove from favorites' : 'Add to favorites'"
                         >
-                          {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
+                          {{ getSession(dayData, timeSlot, room) && isFavorite(getSession(dayData, timeSlot, room)!.sessionId) ? '❤️' : '🤍' }}
                         </button>
                       </div>
                       
                       <div class="session-info-mobile">
                         <div class="session-duration-mobile">
-                          {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
+                          {{ getSession(dayData, timeSlot, room)?.length }} min
                         </div>
                         <div class="session-speakers-mobile">
-                          {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                          {{ getSession(dayData, timeSlot, room) ? getSpeakerNames(getSession(dayData, timeSlot, room)!.speakers) : '' }}
                         </div>
                       </div>
                     </div>
