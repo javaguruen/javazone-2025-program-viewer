@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 
 interface Speaker {
   name: string
@@ -12,12 +12,22 @@ interface Session {
   length: string
   room: string
   startTimeZulu: string
+  endTimeZulu: string
   speakers: Speaker[]
+}
+
+interface DayData {
+  date: string
+  displayDate: string
+  rooms: string[]
+  timeSlots: string[]
+  sessionMap: Map<string, Map<string, Session>>
 }
 
 const sessionsData = ref<Session[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+const activeTab = ref<string>('')
 
 const fetchSessions = async () => {
   try {
@@ -40,10 +50,10 @@ const fetchSessions = async () => {
   }
 }
 
-// Filter out workshops and organize by room
-const filteredAndGroupedSessions = computed(() => {
+// Group sessions by day
+const sessionsByDay = computed(() => {
   if (!sessionsData.value || !Array.isArray(sessionsData.value)) {
-    return { rooms: [], timeSlots: [] }
+    return new Map<string, DayData>()
   }
 
   // Filter out workshops
@@ -51,30 +61,124 @@ const filteredAndGroupedSessions = computed(() => {
     (session: Session) => session.format !== 'workshop'
   )
 
-  // Get unique rooms
-  const rooms = [...new Set(nonWorkshopSessions.map((session: Session) => session.room))]
-    .filter(room => room && room.trim() !== '')
-    .sort()
-
-  // Get unique time slots and sort them
-  const timeSlots = [...new Set(nonWorkshopSessions.map((session: Session) => session.startTimeZulu))]
-    .filter(time => time)
-    .sort()
-
-  // Create a map for easy lookup: timeSlot -> room -> session
-  const sessionMap = new Map()
+  // Group by date
+  const dayMap = new Map<string, Session[]>()
   
   nonWorkshopSessions.forEach((session: Session) => {
-    if (!session.startTimeZulu || !session.room) return
+    if (!session.startTimeZulu) return
     
-    if (!sessionMap.has(session.startTimeZulu)) {
-      sessionMap.set(session.startTimeZulu, new Map())
+    const date = new Date(session.startTimeZulu)
+    const dateKey = date.toISOString().split('T')[0] // YYYY-MM-DD format
+    
+    if (!dayMap.has(dateKey)) {
+      dayMap.set(dateKey, [])
     }
-    sessionMap.get(session.startTimeZulu).set(session.room, session)
+    dayMap.get(dateKey)!.push(session)
   })
 
-  return { rooms, timeSlots, sessionMap }
+  // Create DayData for each day
+  const result = new Map<string, DayData>()
+  
+  for (const [dateKey, sessions] of dayMap.entries()) {
+    // Get unique rooms for this day
+    const rooms = [...new Set(sessions.map(session => session.room))]
+      .filter(room => room && room.trim() !== '')
+      .sort()
+
+    // Get unique time slots for this day and sort them
+    const timeSlots = [...new Set(sessions.map(session => session.startTimeZulu))]
+      .filter(time => time)
+      .sort()
+
+    // Create session map for this day
+    const sessionMap = new Map<string, Map<string, Session>>()
+    
+    sessions.forEach((session: Session) => {
+      if (!session.startTimeZulu || !session.room) return
+      
+      if (!sessionMap.has(session.startTimeZulu)) {
+        sessionMap.set(session.startTimeZulu, new Map())
+      }
+      sessionMap.get(session.startTimeZulu)!.set(session.room, session)
+    })
+
+    // Format display date
+    const date = new Date(dateKey)
+    const displayDate = date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+
+    result.set(dateKey, {
+      date: dateKey,
+      displayDate,
+      rooms,
+      timeSlots,
+      sessionMap
+    })
+  }
+
+  return result
 })
+
+// Get current day sessions for auto-scrolling
+const getCurrentDayCurrentSession = (dayData: DayData) => {
+  const now = new Date()
+  const currentTime = now.toISOString()
+  
+  // Find the session that's currently running or about to start
+  for (const timeSlot of dayData.timeSlots) {
+    const sessionStart = new Date(timeSlot)
+    const sessionEnd = new Date(sessionStart.getTime() + 60 * 60 * 1000) // Assume 1 hour if no end time
+    
+    // Check if current time is within this time slot (with some buffer)
+    if (currentTime >= timeSlot && currentTime <= sessionEnd.toISOString()) {
+      return timeSlot
+    }
+    
+    // If we haven't reached this time slot yet, it's the next one
+    if (currentTime < timeSlot) {
+      return timeSlot
+    }
+  }
+  
+  return null
+}
+
+// Initialize active tab and auto-scroll
+const initializeView = async () => {
+  if (sessionsByDay.value.size === 0) return
+  
+  const today = new Date().toISOString().split('T')[0]
+  const availableDays = Array.from(sessionsByDay.value.keys()).sort()
+  
+  // Set active tab to today if available, otherwise first day
+  if (sessionsByDay.value.has(today)) {
+    activeTab.value = today
+  } else {
+    activeTab.value = availableDays[0] || ''
+  }
+  
+  // Auto-scroll to current session if we're on a conference day
+  await nextTick()
+  
+  if (activeTab.value === today && sessionsByDay.value.has(today)) {
+    const dayData = sessionsByDay.value.get(today)!
+    const currentSession = getCurrentDayCurrentSession(dayData)
+    
+    if (currentSession) {
+      // Scroll to current session after a short delay
+      setTimeout(() => {
+        const element = document.querySelector(`[data-time-slot="${currentSession}"]`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 500)
+    }
+  }
+}
 
 // Helper function to format time
 const formatTime = (timeString: string) => {
@@ -97,8 +201,18 @@ const getSpeakerNames = (speakers: Speaker[]) => {
   return speakers.map(speaker => speaker.name).join(', ')
 }
 
-onMounted(() => {
-  fetchSessions()
+// Check if a time slot is currently active
+const isCurrentTimeSlot = (timeSlot: string) => {
+  const now = new Date()
+  const sessionStart = new Date(timeSlot)
+  const sessionEnd = new Date(sessionStart.getTime() + 60 * 60 * 1000) // Assume 1 hour duration
+  
+  return now >= sessionStart && now <= sessionEnd
+}
+
+onMounted(async () => {
+  await fetchSessions()
+  await initializeView()
 })
 </script>
 
@@ -115,48 +229,69 @@ onMounted(() => {
       <button @click="fetchSessions" class="retry-btn">Retry</button>
     </div>
     
-    <div v-else class="sessions-table-container">
+    <div v-else class="sessions-container">
       <h2>Program Schedule (Workshops excluded)</h2>
       
-      <div class="table-wrapper">
-        <table class="sessions-table">
-          <thead>
-            <tr>
-              <th class="time-header">Time</th>
-              <th v-for="room in filteredAndGroupedSessions.rooms" :key="room" class="room-header">
-                {{ room }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="timeSlot in filteredAndGroupedSessions.timeSlots" :key="timeSlot" class="time-row">
-              <td class="time-cell">
-                {{ formatTime(timeSlot) }}
-              </td>
-              <td v-for="room in filteredAndGroupedSessions.rooms" :key="room" class="session-cell">
-                <div v-if="filteredAndGroupedSessions.sessionMap.get(timeSlot)?.get(room)" class="session-content">
-                  <div class="session-title">
-                    {{ filteredAndGroupedSessions.sessionMap.get(timeSlot).get(room).title }}
-                  </div>
-                  <div class="session-duration">
-                    {{ filteredAndGroupedSessions.sessionMap.get(timeSlot).get(room).length }} min
-                  </div>
-                  <div class="session-speakers">
-                    {{ getSpeakerNames(filteredAndGroupedSessions.sessionMap.get(timeSlot).get(room).speakers) }}
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Day Tabs -->
+      <div class="tabs-container">
+        <div class="tabs">
+          <button 
+            v-for="[dateKey, dayData] in sessionsByDay.entries()" 
+            :key="dateKey"
+            :class="['tab', { active: activeTab === dateKey }]"
+            @click="activeTab = dateKey"
+          >
+            {{ dayData.displayDate }}
+          </button>
+        </div>
       </div>
       
-      <div class="stats">
-        <p>Total sessions displayed: {{ filteredAndGroupedSessions.timeSlots.length * filteredAndGroupedSessions.rooms.length - 
-           (filteredAndGroupedSessions.timeSlots.reduce((count, timeSlot) => 
-             count + filteredAndGroupedSessions.rooms.filter(room => 
-               !filteredAndGroupedSessions.sessionMap.get(timeSlot)?.get(room)
-             ).length, 0)) }}</p>
+      <!-- Day Content -->
+      <div v-for="[dateKey, dayData] in sessionsByDay.entries()" :key="dateKey" v-show="activeTab === dateKey" class="day-content">
+        <div class="table-wrapper">
+          <table class="sessions-table">
+            <thead>
+              <tr>
+                <th class="time-header">Time</th>
+                <th v-for="room in dayData.rooms" :key="room" class="room-header">
+                  {{ room }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="timeSlot in dayData.timeSlots" 
+                :key="timeSlot" 
+                :class="['time-row', { 'current-time': isCurrentTimeSlot(timeSlot) }]"
+                :data-time-slot="timeSlot"
+              >
+                <td class="time-cell">
+                  <div class="time-display">
+                    {{ formatTime(timeSlot) }}
+                    <span v-if="isCurrentTimeSlot(timeSlot)" class="current-indicator">LIVE</span>
+                  </div>
+                </td>
+                <td v-for="room in dayData.rooms" :key="room" class="session-cell">
+                  <div v-if="dayData.sessionMap.get(timeSlot)?.get(room)" class="session-content">
+                    <div class="session-title">
+                      {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                    </div>
+                    <div class="session-duration">
+                      {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
+                    </div>
+                    <div class="session-speakers">
+                      {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="stats">
+          <p>{{ dayData.displayDate }} - Sessions: {{ dayData.timeSlots.length }}, Rooms: {{ dayData.rooms.length }}</p>
+        </div>
       </div>
     </div>
   </div>
@@ -210,8 +345,58 @@ h2 {
   background-color: #c82333;
 }
 
-.sessions-table-container {
+.sessions-container {
   margin-top: 20px;
+}
+
+/* Tab Styles */
+.tabs-container {
+  margin-bottom: 20px;
+  border-bottom: 2px solid #ecf0f1;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  background-color: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tab {
+  padding: 12px 24px;
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+  flex: 1;
+  text-align: center;
+}
+
+.tab:hover {
+  background-color: #e9ecef;
+  color: #495057;
+}
+
+.tab.active {
+  background-color: #fff;
+  color: #2c3e50;
+  border-bottom-color: #3498db;
+  font-weight: 600;
+}
+
+.day-content {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .table-wrapper {
@@ -327,6 +512,48 @@ h2 {
 
 .time-row:hover .session-cell {
   background-color: #f1f2f6;
+}
+
+/* Current Time Styles */
+.time-row.current-time .time-cell {
+  background-color: #e74c3c;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.time-row.current-time .session-cell {
+  border-left: 4px solid #e74c3c;
+  background-color: #fff5f5;
+}
+
+.time-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.current-indicator {
+  background-color: #e74c3c;
+  color: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  animation: blink 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.6; }
 }
 
 .stats {
