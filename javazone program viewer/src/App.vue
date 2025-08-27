@@ -134,10 +134,20 @@ const sessionsByDay = computed(() => {
       .filter(room => room && room.trim() !== '')
       .sort()
 
-    // Get unique time slots for this day and sort them
-    const timeSlots = [...new Set(sessions.map(session => session.startTimeZulu))]
+    // Get all unique time slots for this day
+    const allTimeSlots = [...new Set(sessions.map(session => session.startTimeZulu))]
       .filter(time => time)
       .sort()
+
+    // Filter time slots based on favorites filter
+    const timeSlots = showFavoritesOnly.value 
+      ? allTimeSlots.filter(timeSlot => {
+          // Check if this time slot has any favorite sessions
+          return sessions.some(session => 
+            session.startTimeZulu === timeSlot && favorites.value.has(session.sessionId)
+          )
+        })
+      : allTimeSlots
 
     // Create session map for this day
     const sessionMap = new Map<string, Map<string, Session>>()
