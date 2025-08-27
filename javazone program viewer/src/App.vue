@@ -28,6 +28,8 @@ const sessionsData = ref<Session[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 const activeTab = ref<string>('')
+const favorites = ref<Set<string>>(new Set())
+const showFavoritesOnly = ref(false)
 
 const fetchSessions = async () => {
   try {
@@ -48,6 +50,53 @@ const fetchSessions = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// Favorites management
+const loadFavoritesFromStorage = () => {
+  try {
+    const stored = localStorage.getItem('javazone-favorites')
+    if (stored) {
+      const favArray = JSON.parse(stored)
+      favorites.value = new Set(favArray)
+    }
+  } catch (error) {
+    console.error('Error loading favorites from localStorage:', error)
+  }
+}
+
+const saveFavoritesToStorage = () => {
+  try {
+    const favArray = Array.from(favorites.value)
+    localStorage.setItem('javazone-favorites', JSON.stringify(favArray))
+  } catch (error) {
+    console.error('Error saving favorites to localStorage:', error)
+  }
+}
+
+const toggleFavorite = (sessionId: string) => {
+  if (favorites.value.has(sessionId)) {
+    favorites.value.delete(sessionId)
+  } else {
+    favorites.value.add(sessionId)
+  }
+  saveFavoritesToStorage()
+}
+
+const isFavorite = (sessionId: string) => {
+  return favorites.value.has(sessionId)
+}
+
+const favoriteCount = computed(() => {
+  return favorites.value.size
+})
+
+// Filter sessions based on favorites setting
+const filterSessions = (sessions: Session[]) => {
+  if (!showFavoritesOnly.value) {
+    return sessions
+  }
+  return sessions.filter(session => favorites.value.has(session.sessionId))
 }
 
 // Group sessions by day
@@ -211,6 +260,7 @@ const isCurrentTimeSlot = (timeSlot: string) => {
 }
 
 onMounted(async () => {
+  loadFavoritesFromStorage()
   await fetchSessions()
   await initializeView()
 })
@@ -230,7 +280,31 @@ onMounted(async () => {
     </div>
     
     <div v-else class="sessions-container">
-      <h2>Program Schedule (Workshops excluded)</h2>
+      <div class="header-controls">
+        <h2>Program Schedule (Workshops excluded)</h2>
+        
+        <!-- Filter Controls -->
+        <div class="filter-controls">
+          <div class="favorites-info">
+            <span class="favorites-count">❤️ {{ favoriteCount }} favorites</span>
+          </div>
+          <div class="filter-buttons">
+            <button 
+              :class="['filter-btn', { active: !showFavoritesOnly }]" 
+              @click="showFavoritesOnly = false"
+            >
+              All Sessions
+            </button>
+            <button 
+              :class="['filter-btn', { active: showFavoritesOnly }]" 
+              @click="showFavoritesOnly = true"
+              :disabled="favoriteCount === 0"
+            >
+              Favorites Only
+            </button>
+          </div>
+        </div>
+      </div>
       
       <!-- Day Tabs -->
       <div class="tabs-container">
@@ -272,15 +346,29 @@ onMounted(async () => {
                   </div>
                 </td>
                 <td v-for="room in dayData.rooms" :key="room" class="session-cell">
-                  <div v-if="dayData.sessionMap.get(timeSlot)?.get(room)" class="session-content">
-                    <div class="session-title">
-                      {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                  <div 
+                    v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
+                    :class="['session-content', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                  >
+                    <div class="session-header">
+                      <div class="session-title">
+                        {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                      </div>
+                      <button 
+                        :class="['favorite-btn', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                        @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
+                        :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
+                      >
+                        {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
+                      </button>
                     </div>
-                    <div class="session-duration">
-                      {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
-                    </div>
-                    <div class="session-speakers">
-                      {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                    <div class="session-info">
+                      <div class="session-duration">
+                        {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
+                      </div>
+                      <div class="session-speakers">
+                        {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -347,6 +435,73 @@ h2 {
 
 .sessions-container {
   margin-top: 20px;
+}
+
+/* Header Controls */
+.header-controls {
+  margin-bottom: 20px;
+}
+
+.filter-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.favorites-info {
+  display: flex;
+  align-items: center;
+}
+
+.favorites-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c3e50;
+  padding: 8px 12px;
+  background-color: white;
+  border-radius: 20px;
+  border: 2px solid #ecf0f1;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  border: 2px solid #3498db;
+  background-color: white;
+  color: #3498db;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.filter-btn:hover:not(:disabled) {
+  background-color: #3498db;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.filter-btn.active {
+  background-color: #3498db;
+  color: white;
+}
+
+.filter-btn:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border-color: #dee2e6;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Tab Styles */
@@ -461,11 +616,28 @@ h2 {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.session-content.favorite {
+  background-color: #fff8f8;
+  border: 2px solid #ffecec;
+  border-radius: 6px;
+  padding: 6px;
+  margin: -2px;
+}
+
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .session-title {
   font-weight: bold;
-  margin-bottom: 8px;
   line-height: 1.3;
   color: #2c3e50;
   font-size: 13px;
@@ -473,6 +645,44 @@ h2 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+  flex: 1;
+}
+
+.favorite-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.favorite-btn:hover {
+  transform: scale(1.1);
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+.favorite-btn.favorited {
+  animation: heartBeat 0.3s ease-in-out;
+}
+
+@keyframes heartBeat {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .session-duration {
