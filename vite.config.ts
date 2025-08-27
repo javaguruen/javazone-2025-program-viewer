@@ -10,6 +10,7 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  base: '/javazone-2025-program-viewer/',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
