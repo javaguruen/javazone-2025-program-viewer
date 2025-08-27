@@ -360,66 +360,134 @@ onMounted(async () => {
       
       <!-- Day Content -->
       <div v-for="[dateKey, dayData] in sessionsByDay.entries()" :key="dateKey" v-show="activeTab === dateKey" class="day-content">
-        <div class="table-wrapper">
-          <table class="sessions-table">
-            <thead>
-              <tr>
-                <th class="time-header">Time</th>
-                <th v-for="room in dayData.rooms" :key="room" class="room-header">
-                  {{ room }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr 
-                v-for="timeSlot in dayData.timeSlots" 
-                :key="timeSlot" 
-                :class="['time-row', { 'current-time': isCurrentTimeSlot(timeSlot) }]"
+        <!-- Desktop Grid View -->
+        <div class="grid-wrapper desktop-view">
+          <!-- Responsive Grid Layout -->
+          <div class="responsive-schedule">
+            <template v-for="timeSlot in dayData.timeSlots" :key="timeSlot">
+              <div 
+                :class="['time-slot-container', { 'current-time-slot': isCurrentTimeSlot(timeSlot) }]"
                 :data-time-slot="timeSlot"
               >
-                <td class="time-cell">
+                <!-- Time Header -->
+                <div class="time-slot-header">
                   <div class="time-display">
                     {{ formatTime(timeSlot) }}
                     <span v-if="isCurrentTimeSlot(timeSlot)" class="current-indicator">LIVE</span>
                   </div>
-                </td>
-                <td v-for="room in dayData.rooms" :key="room" class="session-cell">
+                </div>
+                
+                <!-- Sessions Grid -->
+                <div class="sessions-row">
                   <div 
-                    v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
-                    :class="['session-content', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                    v-for="room in dayData.rooms" 
+                    :key="room"
+                    class="session-column"
+                    :class="{ 'has-session': dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)) }"
                   >
-                    <div class="session-header">
-                      <a 
-                        href="#"
-                        class="session-title-link"
-                        @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
-                        :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
-                      >
-                        <div class="session-title">
-                          {{ dayData.sessionMap.get(timeSlot).get(room).title }}
-                        </div>
-                      </a>
-                      <button 
-                        :class="['favorite-btn', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
-                        @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
-                        :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
-                      >
-                        {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
-                      </button>
+                    <!-- Room Header -->
+                    <div class="room-label">
+                      {{ room }}
                     </div>
-                    <div class="session-info">
-                      <div class="session-duration">
-                        {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
-                      </div>
-                      <div class="session-speakers">
-                        {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                    
+                    <!-- Session Content -->
+                    <div class="session-wrapper">
+                      <div 
+                        v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
+                        :class="['session-content', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                      >
+                        <div class="session-header">
+                          <a 
+                            href="#"
+                            class="session-title-link"
+                            @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
+                            :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
+                          >
+                            <div class="session-title">
+                              {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                            </div>
+                          </a>
+                          <button 
+                            :class="['favorite-btn', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                            @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
+                            :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
+                          >
+                            {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
+                          </button>
+                        </div>
+                        <div class="session-info">
+                          <div class="session-duration">
+                            {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
+                          </div>
+                          <div class="session-speakers">
+                            {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        
+        <!-- Mobile Card View -->
+        <div class="mobile-view">
+          <div v-for="timeSlot in dayData.timeSlots" :key="timeSlot" class="time-slot-mobile">
+            <div :class="['time-header-mobile', { 'current-time': isCurrentTimeSlot(timeSlot) }]" :data-time-slot="timeSlot">
+              <div class="time-display-mobile">
+                {{ formatTime(timeSlot) }}
+                <span v-if="isCurrentTimeSlot(timeSlot)" class="current-indicator-mobile">LIVE</span>
+              </div>
+            </div>
+            
+            <div class="sessions-grid-mobile">
+              <div 
+                v-for="room in dayData.rooms" 
+                :key="room"
+                class="session-card-mobile"
+                v-if="dayData.sessionMap.get(timeSlot)?.get(room) && (!showFavoritesOnly || isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId))"
+              >
+                <div 
+                  :class="['session-content-mobile', { 'favorite': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                >
+                  <div class="session-room-mobile">
+                    {{ room }}
+                  </div>
+                  
+                  <div class="session-header-mobile">
+                    <a 
+                      href="#"
+                      class="session-title-link-mobile"
+                      @click.prevent="openSessionModal(dayData.sessionMap.get(timeSlot).get(room))"
+                      :title="'Click to view details for: ' + dayData.sessionMap.get(timeSlot).get(room).title"
+                    >
+                      <div class="session-title-mobile">
+                        {{ dayData.sessionMap.get(timeSlot).get(room).title }}
+                      </div>
+                    </a>
+                    <button 
+                      :class="['favorite-btn-mobile', { 'favorited': isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) }]"
+                      @click="toggleFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId)"
+                      :title="isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? 'Remove from favorites' : 'Add to favorites'"
+                    >
+                      {{ isFavorite(dayData.sessionMap.get(timeSlot).get(room).sessionId) ? '❤️' : '🤍' }}
+                    </button>
+                  </div>
+                  
+                  <div class="session-info-mobile">
+                    <div class="session-duration-mobile">
+                      {{ dayData.sessionMap.get(timeSlot).get(room).length }} min
+                    </div>
+                    <div class="session-speakers-mobile">
+                      {{ getSpeakerNames(dayData.sessionMap.get(timeSlot).get(room).speakers) }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div class="stats">
@@ -484,16 +552,41 @@ onMounted(async () => {
   margin: 0 auto;
   padding: 20px;
   font-family: Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
 }
 
 h1 {
   color: #2c3e50;
   margin-bottom: 20px;
+  font-size: 24px;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 20px;
+    margin-bottom: 15px;
+    text-align: center;
+  }
 }
 
 h2 {
   color: #34495e;
   margin-bottom: 15px;
+  font-size: 18px;
+}
+
+@media (max-width: 768px) {
+  h2 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    text-align: center;
+  }
 }
 
 .loading {
@@ -544,6 +637,14 @@ h2 {
   background-color: #f8f9fa;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+@media (max-width: 768px) {
+  .filter-controls {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
 }
 
 .favorites-info {
@@ -610,6 +711,15 @@ h2 {
   border-radius: 8px 8px 0 0;
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .tabs {
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
 }
 
 .tab {
@@ -624,6 +734,17 @@ h2 {
   transition: all 0.3s ease;
   flex: 1;
   text-align: center;
+  white-space: nowrap;
+  min-width: fit-content;
+}
+
+@media (max-width: 768px) {
+  .tab {
+    padding: 10px 16px;
+    font-size: 12px;
+    flex: none;
+    min-width: 120px;
+  }
 }
 
 .tab:hover {
@@ -647,6 +768,264 @@ h2 {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* CSS Grid Layout */
+.grid-wrapper {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  background-color: white;
+  overflow: hidden;
+}
+
+/* Responsive Schedule Layout */
+.responsive-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.time-slot-container {
+  border-bottom: 2px solid #dee2e6;
+  background-color: white;
+}
+
+.time-slot-container.current-time-slot {
+  background-color: #fff5f5;
+  border-left: 4px solid #e74c3c;
+}
+
+.time-slot-header {
+  background-color: #2c3e50;
+  color: white;
+  padding: 12px 16px;
+  text-align: center;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+}
+
+.time-slot-container.current-time-slot .time-slot-header {
+  background-color: #e74c3c;
+  animation: pulse 2s infinite;
+}
+
+.sessions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  min-height: 120px;
+}
+
+.session-column {
+  flex: 1 1 200px;
+  min-width: 200px;
+  border-right: 1px solid #dee2e6;
+  display: flex;
+  flex-direction: column;
+}
+
+.session-column:last-child {
+  border-right: none;
+}
+
+.room-label {
+  background-color: #34495e;
+  color: white;
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.session-wrapper {
+  flex: 1;
+  padding: 8px;
+  display: flex;
+  align-items: stretch;
+}
+
+.session-wrapper .session-content {
+  width: 100%;
+}
+
+/* Responsive breakpoints for wrapping */
+/* Allow natural wrapping by setting flex-basis to min-width and allowing growth */
+@media (min-width: 1201px) {
+  .session-column {
+    flex: 1 1 300px;
+    min-width: 300px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .session-column {
+    flex: 1 1 250px;
+    min-width: 250px;
+  }
+}
+
+@media (max-width: 900px) {
+  .session-column {
+    flex: 1 1 45%;
+    min-width: 45%;
+    max-width: 48%;
+  }
+}
+
+@media (max-width: 700px) {
+  .session-column {
+    flex: 1 1 100%;
+    min-width: 100%;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #dee2e6;
+  }
+  
+  .session-column:last-child {
+    border-bottom: none;
+  }
+}
+
+@media (max-width: 800px) {
+  .room-label {
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+  
+  .session-wrapper {
+    padding: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .time-slot-header {
+    padding: 10px 12px;
+  }
+  
+  .room-label {
+    font-size: 10px;
+    padding: 5px 3px;
+  }
+  
+  .session-wrapper {
+    padding: 4px;
+  }
+}
+
+.sessions-grid {
+  display: grid;
+  gap: 0;
+  font-size: 14px;
+}
+
+/* Grid Headers */
+.grid-header {
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: bold;
+  border-bottom: 2px solid #bdc3c7;
+}
+
+.grid-header.time-header {
+  background-color: #2c3e50;
+  color: white;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.grid-header.room-header {
+  background-color: #34495e;
+  color: white;
+}
+
+/* Grid Cells */
+.grid-time-cell {
+  background-color: #ecf0f1;
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: bold;
+  border-right: 2px solid #bdc3c7;
+  border-bottom: 1px solid #dee2e6;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-time-cell.current-time {
+  background-color: #e74c3c;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.grid-session-cell {
+  padding: 8px;
+  border: 1px solid #dee2e6;
+  border-top: none;
+  min-height: 120px;
+  display: flex;
+  align-items: stretch;
+}
+
+.grid-session-cell.current-time-session {
+  border-left: 4px solid #e74c3c;
+  background-color: #fff5f5;
+}
+
+/* Responsive Grid Columns */
+@media (min-width: 1400px) {
+  .sessions-grid {
+    font-size: 15px;
+  }
+  .grid-session-cell {
+    min-height: 130px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .sessions-grid {
+    font-size: 13px;
+  }
+  .grid-session-cell {
+    min-height: 110px;
+  }
+  .grid-header, .grid-time-cell {
+    padding: 10px 6px;
+  }
+}
+
+@media (max-width: 992px) {
+  .sessions-grid {
+    font-size: 12px;
+  }
+  .grid-session-cell {
+    min-height: 100px;
+    padding: 6px;
+  }
+  .grid-header, .grid-time-cell {
+    padding: 8px 4px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sessions-grid {
+    font-size: 11px;
+  }
+  .grid-session-cell {
+    min-height: 90px;
+    padding: 4px;
+  }
+  .grid-header, .grid-time-cell {
+    padding: 6px 2px;
+  }
+}
+
+/* Legacy table styles for compatibility */
 .table-wrapper {
   overflow-x: auto;
   margin-bottom: 20px;
@@ -1072,25 +1451,465 @@ h2 {
   border-color: #c0392b;
 }
 
+/* Enhanced Mobile Responsiveness */
 @media (max-width: 768px) {
+  /* Table improvements */
   .sessions-table {
     font-size: 12px;
   }
   
   .time-header, .room-header {
     padding: 8px 4px;
+    font-size: 11px;
   }
   
   .time-cell, .session-cell {
     padding: 6px 4px;
+    min-width: 150px;
+    height: 100px;
   }
   
   .session-title {
-    font-size: 12px;
+    font-size: 11px;
+    -webkit-line-clamp: 2;
   }
   
   .session-speakers {
+    font-size: 10px;
+    -webkit-line-clamp: 1;
+  }
+  
+  .session-duration {
+    font-size: 10px;
+    padding: 1px 4px;
+  }
+  
+  /* Improve touch targets */
+  .favorite-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+  
+  .session-title-link {
+    padding: 4px;
+    min-height: 32px;
+  }
+  
+  /* Filter buttons */
+  .filter-btn {
+    padding: 12px 20px;
+    font-size: 16px;
+    min-height: 44px;
+    border-radius: 25px;
+  }
+  
+  .filter-buttons {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  
+  .filter-btn {
+    width: 100%;
+  }
+  
+  /* Modal improvements */
+  .modal-content {
+    width: 95vw;
+    max-height: 90vh;
+    border-radius: 8px;
+  }
+  
+  .modal-header {
+    padding: 16px;
+  }
+  
+  .modal-title {
+    font-size: 18px;
+  }
+  
+  .modal-close {
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
+  }
+  
+  .modal-body {
+    padding: 16px;
+  }
+  
+  .session-meta {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .modal-favorite-btn {
+    padding: 16px 24px;
+    font-size: 18px;
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  
+  /* Stats */
+  .stats {
+    padding: 10px;
+    font-size: 12px;
+  }
+  
+  /* Time display improvements */
+  .time-display {
     font-size: 11px;
+  }
+  
+  .current-indicator {
+    font-size: 8px;
+    padding: 1px 4px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .container {
+    padding: 5px;
+  }
+  
+  .time-cell, .session-cell {
+    min-width: 120px;
+    height: 90px;
+    padding: 4px 2px;
+  }
+  
+  .session-title {
+    font-size: 10px;
+  }
+  
+  .session-speakers {
+    font-size: 9px;
+  }
+  
+  .session-duration {
+    font-size: 9px;
+  }
+  
+  .tab {
+    min-width: 100px;
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  
+  .modal-content {
+    width: 98vw;
+    max-height: 95vh;
+  }
+  
+  .modal-header {
+    padding: 12px;
+  }
+  
+  .modal-title {
+    font-size: 16px;
+  }
+  
+  .modal-body {
+    padding: 12px;
+  }
+}
+
+/* Desktop/Tablet View - Show grid only on larger screens */
+.desktop-view {
+  display: block;
+}
+
+.mobile-view {
+  display: none;
+}
+
+/* Add horizontal scrolling for medium screens that still use grid */
+@media (max-width: 1024px) {
+  .grid-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .sessions-grid {
+    min-width: 800px; /* Ensure minimum width so columns don't get too cramped */
+  }
+}
+
+/* Switch to mobile card view on smaller screens */
+@media (max-width: 900px) {
+  .desktop-view {
+    display: none;
+  }
+  
+  .mobile-view {
+    display: block;
+  }
+}
+
+/* Mobile Time Slot Styles */
+.time-slot-mobile {
+  margin-bottom: 24px;
+}
+
+.time-header-mobile {
+  background-color: #2c3e50;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px 8px 0 0;
+  font-weight: bold;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.time-header-mobile.current-time {
+  background-color: #e74c3c;
+  animation: pulse 2s infinite;
+}
+
+.time-display-mobile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 16px;
+}
+
+.current-indicator-mobile {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  animation: blink 1.5s infinite;
+}
+
+/* Sessions Grid for Mobile */
+.sessions-grid-mobile {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+@media (max-width: 480px) {
+  .sessions-grid-mobile {
+    padding: 12px;
+    gap: 10px;
+  }
+}
+
+/* Session Card Mobile */
+.session-card-mobile {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 1px solid #e9ecef;
+}
+
+.session-card-mobile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.session-content-mobile {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+}
+
+.session-content-mobile.favorite {
+  background-color: #fff8f8;
+  border-color: #ffecec;
+}
+
+@media (max-width: 480px) {
+  .session-content-mobile {
+    padding: 12px;
+    gap: 10px;
+  }
+}
+
+/* Room Label Mobile */
+.session-room-mobile {
+  background-color: #34495e;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  margin: -16px -16px 0 -16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+@media (max-width: 480px) {
+  .session-room-mobile {
+    margin: -12px -12px 0 -12px;
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+}
+
+/* Session Header Mobile */
+.session-header-mobile {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.session-title-link-mobile {
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: block;
+  padding: 8px;
+  margin: -8px;
+}
+
+.session-title-link-mobile:hover {
+  background-color: rgba(52, 152, 219, 0.08);
+  transform: translateY(-1px);
+}
+
+.session-title-mobile {
+  font-weight: 600;
+  line-height: 1.4;
+  color: #2c3e50;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.session-title-link-mobile:hover .session-title-mobile {
+  color: #3498db;
+}
+
+@media (max-width: 480px) {
+  .session-title-mobile {
+    font-size: 14px;
+  }
+}
+
+.favorite-btn-mobile {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px;
+}
+
+.favorite-btn-mobile:hover {
+  transform: scale(1.1);
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+.favorite-btn-mobile.favorited {
+  animation: heartBeat 0.3s ease-in-out;
+}
+
+/* Session Info Mobile */
+.session-info-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e9ecef;
+}
+
+.session-duration-mobile {
+  background-color: #3498db;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  align-self: flex-start;
+}
+
+@media (max-width: 480px) {
+  .session-duration-mobile {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}
+
+.session-speakers-mobile {
+  font-size: 14px;
+  color: #7f8c8d;
+  font-style: italic;
+  line-height: 1.3;
+}
+
+@media (max-width: 480px) {
+  .session-speakers-mobile {
+    font-size: 12px;
+  }
+}
+
+/* Mobile-specific responsive adjustments */
+@media (max-width: 768px) {
+  .time-slot-mobile {
+    margin-bottom: 20px;
+  }
+  
+  .time-header-mobile {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+  
+  .time-display-mobile {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .time-slot-mobile {
+    margin-bottom: 16px;
+  }
+  
+  .time-header-mobile {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  .time-display-mobile {
+    font-size: 13px;
+  }
+  
+  .session-card-mobile:hover {
+    transform: none;
   }
 }
 </style>
